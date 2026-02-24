@@ -1,0 +1,178 @@
+# 🎮 Crash Game — План развития
+
+## Текущее состояние
+
+Проект — 3D crash-игра (рыцарь бежит по подземелью) с React + Three.js (R3F) клиентом и Express + Socket.io сервером. Реализован базовый игровой цикл: WAITING → RUNNING → CRASHED.
+
+**Проблемы текущей кодовой базы:**
+- Типы (`GamePhase`, [PlayerInfo](file:///e:/Git-Projects/crash-web-games/game2/client/src/store/useGameStore.ts#10-17)) продублированы на клиенте и сервере
+- Нет баланса — ставки ни на что не влияют, нет отслеживания средств
+- Нет UI статистики (история раундов, лидерборд, графики)
+- [App.css](file:///e:/Git-Projects/crash-web-games/game2/client/src/App.css) — остатки шаблона Vite, не используется
+- Сервер — один монолитный файл [index.ts](file:///e:/Git-Projects/crash-web-games/game2/server/index.ts)
+- Нет тестов, CI/CD, деплоя, кошелька
+
+---
+
+## Фаза 1: Рефакторинг
+
+> [!IMPORTANT]
+> Рефакторинг — фундамент для всех следующих фаз. Без него добавлять фичи будет больно.
+
+### Shared Types — общий пакет типов
+
+#### [DONE] shared/types.ts
+- Вынести `GamePhase`, [PlayerInfo](file:///e:/Git-Projects/crash-web-games/game2/client/src/store/useGameStore.ts#10-17) и все общие интерфейсы в единый файл
+- Импортировать в клиент и сервер вместо дублирования
+
+---
+
+### Сервер — модуляризация
+
+#### [DONE] [index.ts](file:///e:/Git-Projects/crash-web-games/game2/server/index.ts)
+- Разбить на модули:
+  - `server/game/GameEngine.ts` — класс `GameEngine` с логикой фаз, множителем, crash-point
+  - `server/game/PlayerManager.ts` — управление игроками, балансами, ставками
+  - `server/socket/handlers.ts` — обработчики Socket.io событий
+  - `server/config.ts` — константы (`MS_PER_TICK`, `WAITING_TIME_MS`, `PORT`)
+  - [server/index.ts](file:///e:/Git-Projects/crash-web-games/game2/server/index.ts) — только инициализация Express + Socket.io
+
+---
+
+### Клиент — очистка и структура
+
+#### [DONE] [App.css](file:///e:/Git-Projects/crash-web-games/game2/client/src/App.css)
+- Удалить остатки шаблона Vite (неиспользуемые стили `.logo`, `.card`)
+
+#### [DONE] [useGameStore.ts](file:///e:/Git-Projects/crash-web-games/game2/client/src/store/useGameStore.ts)
+- Разбить на слайсы: `gameSlice` (фаза, множитель), `playerSlice` (ставки, баланс), `statsSlice` (история)
+- Добавить состояние `balance`, `roundHistory`, `totalProfit`
+
+---
+
+## Фаза 2: Баланс и статистика
+
+### Серверная часть
+
+#### [MODIFY] server/game/PlayerManager.ts
+- Добавить отслеживание баланса у каждого игрока (начальный баланс — 10 000)
+- Проверять баланс при ставке, вычитать при бете, начислять при cashout
+- Эмитить `player:balance_update` клиенту
+- Сохранять историю раундов (последние 50 раундов с crash-point)
+
+---
+
+### Клиентские компоненты
+
+#### [NEW] client/src/components/BalanceBar.tsx
+- Компонент верхней панели с текущим балансом, суммарным профитом
+- Анимация при изменении баланса (зелёная вспышка при win, красная при lose)
+
+#### [NEW] client/src/components/RoundHistory.tsx
+- Горизонтальная лента последних 20 crash-points
+- Цветовая индикация: < 2x красный, 2-5x жёлтый, > 5x зелёный
+
+#### [NEW] client/src/components/StatsPanel.tsx
+- Панель со статистикой: всего ставок, побед, проигрышей, лучший множитель
+- Графики: распределение crash-points, прибыль за сессию
+
+#### [NEW] client/src/components/Leaderboard.tsx
+- Таблица лидеров текущего раунда: кто забрал, при каком множителе, сколько выиграл
+
+#### [MODIFY] [HUD.tsx](file:///e:/Git-Projects/crash-web-games/game2/client/src/components/HUD.tsx)
+- Интегрировать `BalanceBar` и `RoundHistory` в HUD
+
+#### [MODIFY] [BetPanel.tsx](file:///e:/Git-Projects/crash-web-games/game2/client/src/components/BetPanel.tsx)
+- Добавить быстрые кнопки ставок (x2, 1/2, all-in)
+- Автоставка (авто-бет + авто-кашаут при N множителе)
+- Отображать реальный баланс, блокировать ставку при недостатке средств
+
+---
+
+## Фаза 3: Интеграция MetaMask
+
+> [!WARNING]
+> Интеграция MetaMask подразумевает реальный или тестовый блокчейн. Нужно решить: будет ли это mock/testnet или mainnet? Какой токен использовать (ETH, ERC-20)?
+
+### Клиент
+
+#### [NEW] client/src/wallet/WalletProvider.tsx
+- React Context для MetaMask: подключение, аккаунт, сеть, баланс
+- Использование `window.ethereum` API (ethers.js или viem)
+
+#### [NEW] client/src/wallet/useWallet.ts
+- Хук: `connectWallet()`, `disconnectWallet()`, `walletAddress`, `chainId`, `ethBalance`
+
+#### [NEW] client/src/components/WalletButton.tsx
+- Кнопка подключения MetaMask в хедере
+- Отображение адреса (сокращённо), баланса ETH, иконки сети
+
+### Сервер
+
+#### [NEW] server/wallet/verifySignature.ts
+- Верификация подписи сообщения через ethers.js для аутентификации через кошелёк
+- Sign-in with Ethereum (SIWE) flow
+
+---
+
+## Фаза 4: Деплой
+
+### Docker
+
+#### [NEW] Dockerfile (корень)
+- Multi-stage: build клиента → production nginx serve
+  
+#### [NEW] Dockerfile.server
+- Node.js образ для сервера
+
+#### [NEW] docker-compose.yml
+- Объединение клиента (nginx) + сервера (node) + опционально Redis для состояний
+
+### CI/CD
+
+#### [NEW] .github/workflows/deploy.yml
+- GitHub Actions: build → test → push Docker images → deploy
+- Деплой варианты: VPS (через SSH), Railway, Vercel (client) + Fly.io (server)
+
+### Конфигурация
+
+#### [MODIFY] client (vite.config.ts)
+- Добавить env-переменные для `VITE_SOCKET_URL` вместо хардкода `localhost:3001`
+
+#### [MODIFY] server/index.ts
+- CORS из env-переменных, `PORT` из `process.env`
+
+---
+
+## Приоритет и порядок
+
+| # | Фаза | Сложность | Зависимости |
+|---|-------|-----------|-------------|
+| 1 | Рефакторинг | Средняя | — |
+| 2 | Баланс + UI статистика | Высокая | Фаза 1 |
+| 3 | MetaMask | Высокая | Фаза 2 |
+| 4 | Деплой | Средняя | Фаза 1 (минимум) |
+
+> [!TIP]
+> Деплой можно запустить параллельно с Фазой 2 — docker-контейнеризация не зависит от фич.
+
+---
+
+## Verification Plan
+
+### Фаза 1 (Рефакторинг)
+- Запустить `cmd /c npm run build` на клиенте и сервере — убедиться, что компилируется без ошибок
+- Запустить оба сервера, открыть в браузере — проверить что игровой цикл не сломан (ставка → множитель растёт → краш)
+
+### Фаза 2 (Баланс + UI)
+- Проверить в браузере: начальный баланс отображается, после ставки вычитается, после cashout начисляется
+- История раундов обновляется после каждого краша
+- Невозможно сделать ставку больше баланса
+
+### Фаза 3 (MetaMask)
+- Подключить MetaMask, проверить отображение адреса и баланса
+- Проверить на Sepolia testnet
+
+### Фаза 4 (Деплой)
+- `cmd /c docker compose up --build` — проверить что всё собирается и работает
+- Проверить доступность через браузер на localhost
