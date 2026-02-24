@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
-import { GamePhase } from '../../../shared/types';
-import type { PlayerInfo } from '../../../shared/types';
-export { GamePhase } from '../../../shared/types';
-export type { PlayerInfo } from '../../../shared/types';
+import { GamePhase } from '@shared/types';
+import type { PlayerInfo } from '@shared/types';
+export { GamePhase } from '@shared/types';
+export type { PlayerInfo } from '@shared/types';
 
 
 interface GameState {
