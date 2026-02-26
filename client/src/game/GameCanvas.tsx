@@ -538,8 +538,6 @@ function Effects() {
 }
 
 export const GameCanvas = () => {
-  const phase = useGameStore(s => s.phase);
-
   return (
     <Canvas dpr={isMobile ? [1, 1] : [1, 2]}>
       <CameraRig />
