@@ -16,12 +16,41 @@ function Character() {
   const { actions } = useAnimations(animations, group);
   const phase = useGameStore(s => s.phase);
   const crashTimeRef = useRef(0);
+  // Store original material data so we can reset after burn
+  const originalMats = useRef<Map<THREE.MeshStandardMaterial, { color: THREE.Color; emissive: THREE.Color; emissiveIntensity: number }>>(new Map());
+
+  // Save original colors once on mount
+  useEffect(() => {
+    scene.traverse((child: THREE.Object3D) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh && mesh.material) {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mat.color && !originalMats.current.has(mat)) {
+          originalMats.current.set(mat, {
+            color: mat.color.clone(),
+            emissive: mat.emissive ? mat.emissive.clone() : new THREE.Color(0x000000),
+            emissiveIntensity: mat.emissiveIntensity || 0,
+          });
+        }
+      }
+    });
+  }, [scene]);
+
+  // Restore original materials helper
+  const restoreMaterials = () => {
+    originalMats.current.forEach((orig, mat) => {
+      mat.color.copy(orig.color);
+      mat.emissive.copy(orig.emissive);
+      mat.emissiveIntensity = orig.emissiveIntensity;
+    });
+  };
 
   useEffect(() => {
     Object.values(actions).forEach(action => action?.stop());
     
     if (phase === GamePhase.RUNNING) {
       crashTimeRef.current = 0;
+      restoreMaterials();
       const run = actions['Running_A'];
       if (run) {
         run.reset().play();
@@ -29,7 +58,6 @@ function Character() {
       }
     } else if (phase === GamePhase.CRASHED) {
       crashTimeRef.current = 0;
-      // Freeze character in place
       const run = actions['Running_A'];
       if (run) {
         run.play();
@@ -39,6 +67,7 @@ function Character() {
       }
     } else {
       crashTimeRef.current = 0;
+      restoreMaterials();
       const walk = actions['Walking_A'];
       if (walk) {
         walk.reset().play();
@@ -49,18 +78,17 @@ function Character() {
     }
   }, [phase, actions]);
 
-  // Dissolve the knight during crash — scale down + sink into floor
+  // Dissolve the knight during crash
   useFrame((_s, delta) => {
     if (!group.current) return;
     if (phase === GamePhase.CRASHED) {
       crashTimeRef.current += delta;
       const t = crashTimeRef.current;
-      // After fire hits (~0.8s), start dissolving
       if (t > 0.8) {
-        const dissolveT = Math.min((t - 0.8) / 1.5, 1); // 1.5s dissolve
+        const dissolveT = Math.min((t - 0.8) / 1.5, 1);
         const scale = Math.max(0, 1 - dissolveT);
         group.current.scale.setScalar(scale);
-        group.current.position.y = -dissolveT * 0.5; // Sink slightly
+        group.current.position.y = -dissolveT * 0.5;
         // Tint materials orange/black as burning
         group.current.traverse((child: THREE.Object3D) => {
           const mesh = child as THREE.Mesh;
@@ -75,7 +103,6 @@ function Character() {
         });
       }
     } else {
-      // Reset on non-crash
       group.current.scale.setScalar(1);
       group.current.position.y = 0;
     }
@@ -91,25 +118,13 @@ function Character() {
 /* ===================== DRAGON ===================== */
 function Dragon() {
   const group = useRef<THREE.Group>(null);
-  const { scene, animations } = useGLTF('/models/characters/Dragon.glb');
-  const { actions } = useAnimations(animations, group);
+  const { scene } = useGLTF('/models/characters/Dragon.glb');
   const phase = useGameStore(s => s.phase);
   const crashTimeRef = useRef(0);
-  const hasLanded = useRef(false);
 
   useEffect(() => {
     crashTimeRef.current = 0;
-    hasLanded.current = false;
-    Object.values(actions).forEach(a => a?.stop());
-
-    if (phase === GamePhase.CRASHED) {
-      // Try to play Fly animation, falling back to any available
-      const fly = actions['Fly'] || actions['fly'] || actions['Flying'] || actions['Move'] || actions['move'];
-      if (fly) {
-        fly.reset().play();
-      }
-    }
-  }, [phase, actions]);
+  }, [phase]);
 
   useFrame((_s, delta) => {
     if (!group.current) return;
@@ -118,46 +133,41 @@ function Dragon() {
       crashTimeRef.current += delta;
       const t = crashTimeRef.current;
 
-      // Phase 1 (0-0.6s): Dragon flies in from behind camera, swooping down
+      // Phase 1 (0-0.6s): Dragon flies in from above/behind, swooping down
       if (t < 0.6) {
         const flyT = t / 0.6;
-        // Start from behind camera (z=10, y=5) → swoop to (z=-2, y=2)
-        group.current.position.z = THREE.MathUtils.lerp(10, -2, flyT);
-        group.current.position.y = THREE.MathUtils.lerp(6, 2.5, flyT);
-        group.current.position.x = THREE.MathUtils.lerp(3, 0, flyT);
-        // Bank and rotate toward knight
-        group.current.rotation.y = THREE.MathUtils.lerp(-Math.PI * 0.3, 0, flyT);
+        // Ease-out curve for smoother arrival
+        const eased = 1 - Math.pow(1 - flyT, 3);
+        group.current.position.z = THREE.MathUtils.lerp(12, -2, eased);
+        group.current.position.y = THREE.MathUtils.lerp(8, 3, eased);
+        group.current.position.x = THREE.MathUtils.lerp(4, 0, eased);
+        // Tilt head down as it swoops in
+        group.current.rotation.x = THREE.MathUtils.lerp(0, 0.5, eased);
+        group.current.rotation.y = THREE.MathUtils.lerp(-Math.PI * 0.4, 0, eased);
       }
-      // Phase 2 (0.6-0.8s): Hover in place, face the knight
-      else if (t < 0.8) {
+      // Phase 2 (0.6s+): Hover angled downward — "breathing fire" pose
+      else {
         group.current.position.z = -2;
-        group.current.position.y = 2.5;
         group.current.position.x = 0;
         group.current.rotation.y = 0;
-        // Switch to attack animation
-        if (!hasLanded.current) {
-          hasLanded.current = true;
-          Object.values(actions).forEach(a => a?.stop());
-          const attack = actions['Attack'] || actions['attack'] || actions['Fly'] || actions['fly'];
-          if (attack) attack.reset().play();
-        }
-      }
-      // Phase 3 (0.8s+): Stay hovering, breathing fire
-      else {
+        // Tilt body down ~30° toward the knight — looks like fire-breathing
+        group.current.rotation.x = 0.5; 
         // Gentle hover bob
-        group.current.position.y = 2.5 + Math.sin(t * 3) * 0.15;
+        group.current.position.y = 3 + Math.sin(t * 3) * 0.15;
+        // Subtle wing-flap-like z-rotation oscillation
+        group.current.rotation.z = Math.sin(t * 5) * 0.05;
       }
 
       group.current.visible = true;
     } else {
-      // Hide dragon when not crashed
       group.current.visible = false;
-      group.current.position.set(10, 6, 10);
+      group.current.position.set(12, 8, 12);
+      group.current.rotation.set(0, 0, 0);
     }
   });
 
   return (
-    <group ref={group} visible={false} scale={[1.2, 1.2, 1.2]}>
+    <group ref={group} visible={false} scale={[1.5, 1.5, 1.5]}>
       <primitive object={scene} />
     </group>
   );
