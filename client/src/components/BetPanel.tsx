@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGameStore, GamePhase } from '../store/useGameStore';
 
-export const BetPanel = () => {
+export const BetPanel = ({ isMobile }: { isMobile: boolean }) => {
   const { phase, placeBet, cashOut, hasBet, myBetAmount, players, multiplier, balance, autoCashoutEnabled, autoCashoutAt, setAutoCashout } = useGameStore();
   const [betInput, setBetInput] = useState('100');
   const [autoCashoutInput, setAutoCashoutInput] = useState(String(autoCashoutAt));
@@ -30,20 +30,29 @@ export const BetPanel = () => {
   };
 
   const sortedPlayers = [...players].sort((a, b) => {
-    // Cashed out players first, highest multiplier first
     if (a.cashedOut && !b.cashedOut) return -1;
     if (!a.cashedOut && b.cashedOut) return 1;
     if (a.cashedOut && b.cashedOut) return (b.cashOutMultiplier || 0) - (a.cashOutMultiplier || 0);
-    return b.betAmount - a.betAmount; // Playing players sorted by highest bet amount
+    return b.betAmount - a.betAmount;
   });
 
+  const panelPadding = isMobile ? '16px' : '24px';
+  const betWidth = isMobile ? '100%' : '350px';
+
   return (
-    <div style={{ display: 'flex', gap: '20px', margin: '0 auto 40px auto', pointerEvents: 'auto' }}>
+    <div style={{ 
+      display: 'flex', 
+      gap: isMobile ? '10px' : '20px', 
+      flexDirection: isMobile ? 'column' : 'row',
+      margin: isMobile ? '0' : '0 auto 40px auto', 
+      pointerEvents: 'auto',
+      width: isMobile ? '100%' : 'auto'
+    }}>
       
       {/* Bet Controls */}
-      <div className="glass-panel" style={{ padding: '24px', width: '350px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="glass-panel" style={{ padding: panelPadding, width: betWidth, maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '16px', boxSizing: 'border-box', margin: isMobile ? '0 auto' : undefined }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: isMobile ? '13px' : '14px', fontWeight: 'bold' }}>
           <span style={{ color: 'var(--text-secondary)' }}>Сумма ставки</span>
           <span>$ {balance.toFixed(2)}</span>
         </div>
@@ -110,21 +119,21 @@ export const BetPanel = () => {
         {phase === GamePhase.RUNNING && (
           <>
             {!hasBet ? (
-              <button className="btn" disabled style={{ height: '70px', fontSize: '18px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.7 }}>
+              <button className="btn" disabled style={{ height: isMobile ? '50px' : '70px', fontSize: isMobile ? '14px' : '18px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.7 }}>
                 <span>ОЖИДАЙТЕ...</span>
               </button>
             ) : me?.cashedOut ? (
-              <button className="btn btn-success" disabled style={{ height: '70px', fontSize: '18px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <button className="btn btn-success" disabled style={{ height: isMobile ? '50px' : '70px', fontSize: isMobile ? '14px' : '18px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <span>ВЫВЕЛ {me.cashOutMultiplier}x</span>
               </button>
             ) : (
               <button 
                 className="btn btn-danger" 
                 onClick={cashOut}
-                style={{ height: '70px', fontSize: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                style={{ height: isMobile ? '50px' : '70px', fontSize: isMobile ? '18px' : '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
               >
                 <span>ЗАБРАТЬ</span>
-                <span style={{ fontSize: '14px', opacity: 0.8 }}>{potentialWin}</span>
+                <span style={{ fontSize: isMobile ? '12px' : '14px', opacity: 0.8 }}>{potentialWin}</span>
               </button>
             )}
           </>
@@ -137,41 +146,43 @@ export const BetPanel = () => {
         )}
       </div>
 
-      {/* Leaderboard */}
-      <div className="glass-panel" style={{ padding: '20px', width: '300px', display: 'flex', flexDirection: 'column', gap: '10px', height: 'fit-content', maxHeight: '300px' }}>
-        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
-          <span>Игроки онлайн: {players.length}</span>
-        </div>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
-          {sortedPlayers.map((p) => (
-            <div key={p.id} style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                padding: '8px 12px', 
-                borderRadius: '6px', 
-                background: p.cashedOut ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                border: p.cashedOut ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid transparent',
-                fontSize: '14px'
-              }}>
-              <span style={{ color: p.cashedOut ? '#22c55e' : '#f8fafc', fontWeight: 'bold' }}>
-                {p.name}
-              </span>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                {p.cashedOut && (
-                  <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '12px', backgroundColor: 'rgba(34,197,94,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                    {p.cashOutMultiplier}x
-                  </span>
-                )}
-                <span style={{ color: p.cashedOut ? '#22c55e' : 'var(--text-secondary)' }}>
-                  {p.cashedOut ? `+${(p.betAmount * p.cashOutMultiplier!).toFixed(0)}` : p.betAmount}
+      {/* Leaderboard — hidden on mobile */}
+      {!isMobile && (
+        <div className="glass-panel" style={{ padding: '20px', width: '300px', display: 'flex', flexDirection: 'column', gap: '10px', height: 'fit-content', maxHeight: '300px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+            <span>Игроки онлайн: {players.length}</span>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
+            {sortedPlayers.map((p) => (
+              <div key={p.id} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  padding: '8px 12px', 
+                  borderRadius: '6px', 
+                  background: p.cashedOut ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                  border: p.cashedOut ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid transparent',
+                  fontSize: '14px'
+                }}>
+                <span style={{ color: p.cashedOut ? '#22c55e' : '#f8fafc', fontWeight: 'bold' }}>
+                  {p.name}
                 </span>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {p.cashedOut && (
+                    <span style={{ color: '#22c55e', fontWeight: 'bold', fontSize: '12px', backgroundColor: 'rgba(34,197,94,0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                      {p.cashOutMultiplier}x
+                    </span>
+                  )}
+                  <span style={{ color: p.cashedOut ? '#22c55e' : 'var(--text-secondary)' }}>
+                    {p.cashedOut ? `+${(p.betAmount * p.cashOutMultiplier!).toFixed(0)}` : p.betAmount}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-          {players.length === 0 && <span style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', marginTop: '20px' }}>Ждём игроков...</span>}
+            ))}
+            {players.length === 0 && <span style={{ color: 'var(--text-secondary)', fontSize: '14px', textAlign: 'center', marginTop: '20px' }}>Ждём игроков...</span>}
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );

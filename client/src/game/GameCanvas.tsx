@@ -6,6 +6,9 @@ import { EffectComposer, Bloom, ChromaticAberration, ToneMapping } from '@react-
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { useGameStore, GamePhase } from '../store/useGameStore';
 
+// Detect mobile once
+const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 0;
+
 function Character() {
   const group = useRef<THREE.Group>(null);
   const { scene } = useGLTF('/models/characters/Knight.glb');
@@ -20,11 +23,9 @@ function Character() {
       const run = actions['Running_A'];
       if (run) {
         run.reset().play();
-        // Bypass linter hook mutation check
         Object.assign(run, { paused: false });
       }
     } else if (phase === GamePhase.CRASHED) {
-      // Freeze in current run frame (or T-Pose if run not found)
       const run = actions['Running_A'];
       if (run) {
         run.play();
@@ -32,12 +33,11 @@ function Character() {
       } else {
         actions['T-Pose']?.reset().play();
       }
-    } else { // WAITING
-      // No explicit Idle in this GLB, so we pause the Walk animation on the first frame
+    } else {
       const walk = actions['Walking_A'];
       if (walk) {
         walk.reset().play();
-        Object.assign(walk, { paused: true }); // Freeze at frame 0
+        Object.assign(walk, { paused: true });
       } else {
         actions['T-Pose']?.reset().play();
       }
@@ -55,19 +55,16 @@ function EndlessDungeon() {
   const { scene: floorScene } = useGLTF('/models/dungeon/floor_dirt_large.gltf');
   const { scene: wallScene } = useGLTF('/models/dungeon/wall_half.gltf');
   
-  // Apply color tinting to the models
   useEffect(() => {
     wallScene.traverse((child: THREE.Object3D) => {
       const mesh = child as THREE.Mesh;
       if (mesh.isMesh && mesh.material) {
-        // Lighter stone gray for walls
         (mesh.material as THREE.MeshStandardMaterial).color.set('#64748b'); 
       }
     });
     floorScene.traverse((child: THREE.Object3D) => {
       const mesh = child as THREE.Mesh;
       if (mesh.isMesh && mesh.material) {
-        // Mid-tone stone for the floor
         (mesh.material as THREE.MeshStandardMaterial).color.set('#475569');
       }
     });
@@ -76,16 +73,16 @@ function EndlessDungeon() {
   const phase = useGameStore(s => s.phase);
   const multiplier = useGameStore(s => s.multiplier);
   
-  const segmentsCount = 10;
-  const segmentLength = 4; // KayKit large floor tile is 4x4
-  const speedRef = useRef(10); // units per second
+  // Fewer segments on mobile for better performance
+  const segmentsCount = isMobile ? 6 : 10;
+  const segmentLength = 4;
+  const speedRef = useRef(10);
 
   const groupRef = useRef<THREE.Group>(null);
   
   useFrame((_state, delta) => {
     if (phase !== GamePhase.RUNNING) return;
     
-    // Speed increases slightly with multiplier
     speedRef.current = 10 + (multiplier * 0.5);
 
     if (groupRef.current) {
@@ -103,7 +100,7 @@ function EndlessDungeon() {
       {Array.from({ length: segmentsCount }).map((_, i) => (
         <group key={i} position={[0, 0, -i * segmentLength]}>
            <Clone object={floorScene} position={[0, -0.1, 0]} />
-           {/* Left walls (two half-walls to cover 4 units) */}
+           {/* Left walls */}
            <Clone object={wallScene} position={[-2, 0, 1]} rotation={[0, Math.PI/2, 0]} />
            <Clone object={wallScene} position={[-2, 0, -1]} rotation={[0, Math.PI/2, 0]} />
            {/* Right walls */}
@@ -144,9 +141,9 @@ function CameraRig() {
 
 function DustParticles() {
   const phase = useGameStore(s => s.phase);
-  const particlesCount = 30;
+  // Fewer particles on mobile
+  const particlesCount = isMobile ? 15 : 30;
   
-  // Use a ref to hold instances of positions and lifetimes
   const particles = useRef<{x: number, y: number, z: number, life: number, speed: number}[]>([]);
   
   useEffect(() => {
@@ -170,20 +167,19 @@ function DustParticles() {
     meshRef.current.visible = true;
     
     particles.current.forEach((p, i) => {
-      p.z += p.speed * delta * 4; // Fly backwards relative to runner
-      p.y += delta * 1.5; // Float upwards slightly
-      p.life -= delta * 1.5; // Fade out/Shrink
+      p.z += p.speed * delta * 4;
+      p.y += delta * 1.5;
+      p.life -= delta * 1.5;
       
       if (p.life <= 0) {
-        // Respawn at the runner's feet
         p.life = 1;
         p.x = (Math.random() - 0.5) * 0.8;
         p.y = Math.random() * 0.2;
-        p.z = 0; // At the runner's Z
+        p.z = 0;
       }
       
       dummy.position.set(p.x, p.y, p.z);
-      const scale = p.life * 0.2; // Shrink as life goes down
+      const scale = p.life * 0.2;
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
       meshRef.current!.setMatrixAt(i, dummy.matrix);
@@ -200,14 +196,12 @@ function DustParticles() {
   );
 }
 
+// Desktop-only effects — completely skipped on mobile for GPU savings
 function Effects() {
   const phase = useGameStore(s => s.phase);
   const multiplier = useGameStore(s => s.multiplier);
   
-  // Chromatic aberration offset based on multiplier (gets crazy at high multipliers)
   const caOffset = phase === GamePhase.RUNNING ? Math.min(0.015, (multiplier - 1) * 0.001) : 0;
-  
-  // Bloom intensity spikes on crash
   const bloomIntensity = phase === GamePhase.CRASHED ? 3.0 : 1.2;
 
   return (
@@ -226,14 +220,15 @@ export const GameCanvas = () => {
   const phase = useGameStore(s => s.phase);
 
   return (
-    <Canvas>
+    <Canvas dpr={isMobile ? [1, 1] : [1, 2]}>
       <CameraRig />
-      <Effects />
+      {/* Skip heavy postprocessing on mobile */}
+      {!isMobile && <Effects />}
       <ambientLight intensity={1.5} />
-      <directionalLight position={[10, 20, 10]} intensity={2.0} castShadow />
+      <directionalLight position={[10, 20, 10]} intensity={2.0} castShadow={!isMobile} />
       
       <color attach="background" args={['#050510']} />
-      <fog attach="fog" args={['#050510', 5, 20]} />
+      <fog attach="fog" args={['#050510', 5, isMobile ? 15 : 20]} />
 
       <Suspense fallback={null}>
         <EndlessDungeon />
@@ -241,7 +236,7 @@ export const GameCanvas = () => {
         <DustParticles />
         {phase === GamePhase.CRASHED && (
           <mesh position={[0, 1, 0]}>
-            <sphereGeometry args={[2, 16, 16]} />
+            <sphereGeometry args={[2, isMobile ? 8 : 16, isMobile ? 8 : 16]} />
             <meshBasicMaterial color="#ef4444" transparent opacity={0.8} />
           </mesh>
         )}

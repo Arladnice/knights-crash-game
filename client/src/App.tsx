@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from './store/useGameStore';
 import { BetPanel } from './components/BetPanel';
 import { HUD } from './components/HUD';
@@ -9,11 +9,18 @@ import './index.css';
 function App() {
   const connect = useGameStore(s => s.connect);
   const disconnect = useGameStore(s => s.disconnect);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     connect();
     return () => disconnect();
   }, [connect, disconnect]);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   return (
     <div className="app-container" style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -26,10 +33,18 @@ function App() {
       <div style={{ position: 'relative', zIndex: 10, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', pointerEvents: 'none' }}>
         <HUD />
         
-        {/* Bottom row: Stats on left, Bet controls in center, placeholder on right */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 20px 20px 20px', gap: '20px', pointerEvents: 'auto' }}>
-          <StatsPanel />
-          <BetPanel />
+        {/* Bottom row */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: isMobile ? 'stretch' : 'flex-end', 
+          justifyContent: 'center', 
+          flexDirection: isMobile ? 'column' : 'row',
+          padding: isMobile ? '0 10px 10px 10px' : '0 20px 20px 20px', 
+          gap: isMobile ? '10px' : '20px', 
+          pointerEvents: 'auto' 
+        }}>
+          {!isMobile && <StatsPanel />}
+          <BetPanel isMobile={isMobile} />
         </div>
       </div>
     </div>
