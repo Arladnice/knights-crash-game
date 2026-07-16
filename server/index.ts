@@ -35,4 +35,27 @@ httpServer.listen(config.PORT, () => {
   console.log(`Server is running on port ${config.PORT}`);
 });
 
+// Self-ping to prevent Render sleep (runs every 10 minutes if URL is provided)
+import http from 'http';
+import https from 'https';
+
+const selfPingUrl = process.env.RENDER_EXTERNAL_URL || process.env.SELF_PING_URL;
+if (selfPingUrl) {
+  const pingInterval = 10 * 60 * 1000; // 10 minutes
+  console.log(`Self-ping configured for: ${selfPingUrl}`);
+  setInterval(() => {
+    try {
+      const client = selfPingUrl.startsWith('https') ? https : http;
+      client.get(`${selfPingUrl}/health`, (res) => {
+        console.log(`Self-ping success. Status: ${res.statusCode}`);
+      }).on('error', (err) => {
+        console.error('Self-ping request error:', err.message);
+      });
+    } catch (error) {
+      console.error('Self-ping unexpected error:', error);
+    }
+  }, pingInterval);
+}
+
+
 

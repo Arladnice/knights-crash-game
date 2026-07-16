@@ -1,0 +1,16 @@
+name: Keep Alive Render Server
+
+on:
+  schedule:
+    # Запуск каждые 14 минут (Render Free засыпает через 15 минут неактивности)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Позволяет запускать вручную из веб-интерфейса GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend
+        run: |
+          # Реальный URL вашего бэкенда на Render
+          curl -s https://crash-game-server-tqd1.onrender.com/health || echo "Ping failed"
