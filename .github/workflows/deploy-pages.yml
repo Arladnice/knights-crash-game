@@ -27,6 +27,7 @@ jobs:
         working-directory: client
         env:
           GITHUB_PAGES: "true"
+          VITE_SOCKET_URL: ""
         run: |
           npm install --legacy-peer-deps
           npm run build
