@@ -8,11 +8,12 @@ import { useGameStore, GamePhase } from '../store/useGameStore';
 
 // Detect mobile once
 const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 0;
+const modelUrl = (relPath: string) => `${import.meta.env.BASE_URL}${relPath.replace(/^\//, '')}`;
 
 function Character() {
   const group = useRef<THREE.Group>(null);
-  const { scene } = useGLTF('/models/characters/Knight.glb');
-  const { animations } = useGLTF('/models/characters/Rig_Medium_MovementBasic.glb');
+  const { scene } = useGLTF(modelUrl('models/characters/Knight.glb'));
+  const { animations } = useGLTF(modelUrl('models/characters/Rig_Medium_MovementBasic.glb'));
   const { actions } = useAnimations(animations, group);
   const phase = useGameStore(s => s.phase);
   const crashTimeRef = useRef(0);
@@ -118,7 +119,7 @@ function Character() {
 /* ===================== DRAGON ===================== */
 function Dragon() {
   const group = useRef<THREE.Group>(null);
-  const { scene } = useGLTF('/models/characters/Dragon.glb');
+  const { scene } = useGLTF(modelUrl('models/characters/Dragon.glb'));
   const phase = useGameStore(s => s.phase);
   const crashTimeRef = useRef(0);
 
@@ -374,8 +375,8 @@ function FireLight() {
 
 /* ===================== DUNGEON ===================== */
 function EndlessDungeon() {
-  const { scene: floorScene } = useGLTF('/models/dungeon/floor_dirt_large.gltf');
-  const { scene: wallScene } = useGLTF('/models/dungeon/wall_half.gltf');
+  const { scene: floorScene } = useGLTF(modelUrl('models/dungeon/floor_dirt_large.gltf'));
+  const { scene: wallScene } = useGLTF(modelUrl('models/dungeon/wall_half.gltf'));
   
   useEffect(() => {
     wallScene.traverse((child: THREE.Object3D) => {
@@ -432,11 +433,11 @@ function EndlessDungeon() {
 }
 
 
-useGLTF.preload('/models/characters/Knight.glb');
-useGLTF.preload('/models/characters/Rig_Medium_MovementBasic.glb');
-useGLTF.preload('/models/characters/Dragon.glb');
-useGLTF.preload('/models/dungeon/floor_dirt_large.gltf');
-useGLTF.preload('/models/dungeon/wall_half.gltf');
+useGLTF.preload(modelUrl('models/characters/Knight.glb'));
+useGLTF.preload(modelUrl('models/characters/Rig_Medium_MovementBasic.glb'));
+useGLTF.preload(modelUrl('models/characters/Dragon.glb'));
+useGLTF.preload(modelUrl('models/dungeon/floor_dirt_large.gltf'));
+useGLTF.preload(modelUrl('models/dungeon/wall_half.gltf'));
 
 function CameraRig() {
   const phase = useGameStore(s => s.phase);
@@ -468,17 +469,18 @@ function CameraRig() {
     }
   });
 
-  return <PerspectiveCamera ref={cameraRef as any} makeDefault position={[0, 3, 5]} fov={60} rotation={[-0.2, 0, 0]} />;
+  return <PerspectiveCamera ref={cameraRef as React.RefObject<THREE.PerspectiveCamera>} makeDefault position={[0, 3, 5]} fov={60} rotation={[-0.2, 0, 0]} />;
 }
+
+const DUST_PARTICLES_COUNT = isMobile ? 15 : 30;
 
 function DustParticles() {
   const phase = useGameStore(s => s.phase);
-  const particlesCount = isMobile ? 15 : 30;
   
   const particles = useRef<{x: number, y: number, z: number, life: number, speed: number}[]>([]);
   
   useEffect(() => {
-    particles.current = new Array(particlesCount).fill(0).map(() => ({
+    particles.current = new Array(DUST_PARTICLES_COUNT).fill(0).map(() => ({
       x: (Math.random() - 0.5) * 0.8,
       y: Math.random() * 0.5,
       z: Math.random() * 1.5,
@@ -520,7 +522,7 @@ function DustParticles() {
   });
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, particlesCount]}>
+    <instancedMesh ref={meshRef} args={[undefined, undefined, DUST_PARTICLES_COUNT]}>
       <boxGeometry args={[1, 1, 1]} />
       <meshBasicMaterial color="#888888" transparent opacity={0.6} />
     </instancedMesh>

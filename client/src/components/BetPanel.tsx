@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useGameStore, GamePhase } from '../store/useGameStore';
 
 export const BetPanel = ({ isMobile }: { isMobile: boolean }) => {
-  const { phase, placeBet, cashOut, hasBet, myBetAmount, players, multiplier, balance, autoCashoutEnabled, autoCashoutAt, setAutoCashout } = useGameStore();
+  const { phase, placeBet, cashOut, hasBet, myBetAmount, players, multiplier, balance, autoCashoutEnabled, autoCashoutAt, setAutoCashout, myPlayerId } = useGameStore();
   const [betInput, setBetInput] = useState('100');
   const [autoCashoutInput, setAutoCashoutInput] = useState(String(autoCashoutAt));
 
-  const me = players.find(p => p.id === useGameStore.getState().socket?.id);
+  const me = players.find(p => p.id === myPlayerId);
   const potentialWin = (myBetAmount * multiplier).toFixed(2);
 
   const handleBetChange = (val: string) => {

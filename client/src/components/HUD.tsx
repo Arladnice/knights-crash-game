@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useGameStore, GamePhase } from '../store/useGameStore';
 
 export const HUD = () => {
-  const { phase, multiplier, timeToStart, isConnected, balance, history } = useGameStore();
+  const { phase, multiplier, timeToStart, isConnected, isDemoMode, retryLive, balance, history } = useGameStore();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -102,7 +102,21 @@ export const HUD = () => {
         </div>
       </div>
 
-      {!isConnected && <div style={{ marginTop: isMobile ? '10px' : '20px', alignSelf: 'center', color: '#ef4444', fontWeight: 'bold', background: 'rgba(0,0,0,0.5)', padding: '8px 16px', borderRadius: '20px', fontSize: isMobile ? '13px' : '16px' }}>Связь с сервером потеряна</div>}
+      {!isConnected && (
+        <div style={{ marginTop: isMobile ? '10px' : '16px', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(15, 23, 42, 0.75)', border: '1px solid rgba(56, 189, 248, 0.35)', padding: '6px 14px', borderRadius: '999px', fontSize: isMobile ? '12px' : '13px', pointerEvents: 'auto' }}>
+          <span style={{ color: isDemoMode ? '#38bdf8' : '#f59e0b', fontWeight: 'bold' }}>
+            {isDemoMode ? 'DEMO MODE (Локальная симуляция)' : 'Подключение к серверу...'}
+          </span>
+          {isDemoMode && import.meta.env.VITE_SOCKET_URL && (
+            <button
+              onClick={retryLive}
+              style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#bae6fd', border: '1px solid rgba(56, 189, 248, 0.35)', borderRadius: '999px', padding: '2px 10px', cursor: 'pointer', fontSize: '12px' }}
+            >
+              Live
+            </button>
+          )}
+        </div>
+      )}
       
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ 
